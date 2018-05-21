@@ -99,7 +99,7 @@ int main() {
           cout << "###psi: " << psi << endl;
           cout << "###v: " << v << endl;
 
-          for (int i=0; i<ptsx.size(); i++)
+          for (unsigned int i=0; i<ptsx.size(); i++)
           {
             double dtx = ptsx[i] - px;
             double dty = ptsy[i] - py;
@@ -159,7 +159,7 @@ int main() {
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
-          for (int i = 2; i < vars.size(); i++)
+          for (unsigned int i = 2; i < vars.size(); i++)
           {
             if (i%2 == 0)
             {
