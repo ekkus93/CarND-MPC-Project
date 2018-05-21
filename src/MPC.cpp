@@ -143,8 +143,68 @@ MPC::MPC() {
   n_vars_ = N * 6 + 2*(N - 1);
   // TODO: Set the number of constraints
   n_constraints_ = N * 6;
+
+  // TODO: Set lower and upper limits for variables.
+  InitVarBounds();
 }
 MPC::~MPC() {}
+
+void MPC::InitVarBounds()
+{
+  vars_lowerbound_ = Dvector(n_vars_);
+  vars_upperbound_ = Dvector(n_vars_);   
+
+  // Lower and upper limits for the constraints
+  // Should be 0 besides initial state.
+  for (unsigned int i = 0; i < n_constraints_; i++) {
+    vars_lowerbound_[i] = -1.0e19;
+    vars_upperbound_[i] = 1.0e19;
+  }
+
+  // The upper and lower limits of delta are set to -25 and 25
+  // degrees (values in radians)
+  // NOTE: Feel free to change this to something else.
+  for (unsigned int i = delta_start; i < a_start; i++) {
+    vars_upperbound_[i] = M_PI/8; 
+    vars_lowerbound_[i] = -M_PI/8;
+  }
+
+  // Acceleration/deceleration upper and lower limits 
+  // NOTE: Feel free to change this to something else.
+  for (unsigned int i = a_start; i < n_vars_; i++) {
+    vars_lowerbound_[i] = -1.0;
+    vars_upperbound_[i] = 1.0;
+  }
+}
+
+void MPC::InitContraintBounds(double x, double y, double psi,
+                              double v, double cte,
+                              double epsi)
+{
+  constraints_lowerbound_ = Dvector(n_constraints_);
+  constraints_upperbound_ = Dvector(n_constraints_);   
+
+  // Lower and upper limits for the constraints
+  // Should be 0 besides initial state
+  for (unsigned int i = 0; i < n_constraints_; i++) {
+    constraints_lowerbound_[i] = 0;
+    constraints_upperbound_[i] = 0;
+  }
+
+  constraints_lowerbound_[x_start] = x;
+  constraints_lowerbound_[y_start] = y;
+  constraints_lowerbound_[psi_start] = psi;
+  constraints_lowerbound_[v_start] = v;
+  constraints_lowerbound_[cte_start] = cte;
+  constraints_lowerbound_[epsi_start] = epsi; 
+
+  constraints_upperbound_[x_start] = x;
+  constraints_upperbound_[y_start] = y;
+  constraints_upperbound_[psi_start] = psi;
+  constraints_upperbound_[v_start] = v;
+  constraints_upperbound_[cte_start] = cte;
+  constraints_upperbound_[epsi_start] = epsi;
+}
 
 void MPC::InitState(double x, double y, double psi,
                       double v, double cte,
@@ -162,76 +222,10 @@ void MPC::InitState(double x, double y, double psi,
   vars[epsi_start] = epsi;  
 }
 
-vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+bool MPC::IpoptSolve(const Eigen::VectorXd coeffs, const Dvector &vars, 
+                      vector<double> &result)
+{
   bool ok = true;
-  typedef CPPAD_TESTVECTOR(double) Dvector;
-
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];  
-
-  // Initial value of the independent variables.
-  // SHOULD BE 0 besides initial state.
-  Dvector vars(n_vars_);
-  InitState(x, y, psi, v, cte, epsi, vars);
-
-  cout << "###vars: " << vars << endl;
-
-  Dvector vars_lowerbound(n_vars_);
-  Dvector vars_upperbound(n_vars_);
-  // TODO: Set lower and upper limits for variables.
-
-  // Lower and upper limits for the constraints
-  // Should be 0 besides initial state.
-  for (unsigned int i = 0; i < n_constraints_; i++) {
-    vars_lowerbound[i] = -1.0e19;
-    vars_upperbound[i] = 1.0e19;
-  }
-
-  // The upper and lower limits of delta are set to -25 and 25
-  // degrees (values in radians)
-  // NOTE: Feel free to change this to something else.
-  for (unsigned int i = delta_start; i < a_start; i++) {
-    vars_upperbound[i] = M_PI/8; 
-    vars_lowerbound[i] = -M_PI/8;
-    /*
-    vars_lowerbound[i] = -0.436332*Lf;
-    vars_upperbound[i] = 0.436332*Lf;
-    */
-  }
-
-  // Acceleration/deceleration upper and lower limits 
-  // NOTE: Feel free to change this to something else.
-  for (unsigned int i = a_start; i < n_vars_; i++) {
-    vars_lowerbound[i] = -1.0;
-    vars_upperbound[i] = 1.0;
-  }
-
-  // Lower and upper limits for the constraints
-  // Should be 0 besides initial state
-  Dvector constraints_lowerbound(n_constraints_);
-  Dvector constraints_upperbound(n_constraints_);
-  for (unsigned int i = 0; i < n_constraints_; i++) {
-    constraints_lowerbound[i] = 0;
-    constraints_upperbound[i] = 0;
-  }
-
-  constraints_lowerbound[x_start] = x;
-  constraints_lowerbound[y_start] = y;
-  constraints_lowerbound[psi_start] = psi;
-  constraints_lowerbound[v_start] = v;
-  constraints_lowerbound[cte_start] = cte;
-  constraints_lowerbound[epsi_start] = epsi; 
-
-  constraints_upperbound[x_start] = x;
-  constraints_upperbound[y_start] = y;
-  constraints_upperbound[psi_start] = psi;
-  constraints_upperbound[v_start] = v;
-  constraints_upperbound[cte_start] = cte;
-  constraints_upperbound[epsi_start] = epsi;
 
   // object that computes objective and constraints
   FG_eval fg_eval(coeffs);
@@ -252,19 +246,24 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  //options += "Numeric max_cpu_time          0.5\n";
-  options += "Numeric max_cpu_time          1000.0\n";
-
+  options += "Numeric max_cpu_time          0.5\n";
+  
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
-
+  
   // solve the problem
   CppAD::ipopt::solve<Dvector, FG_eval>(
-      options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
-      constraints_upperbound, fg_eval, solution);
+                                        options, vars, vars_lowerbound_, vars_upperbound_, 
+                                        constraints_lowerbound_, constraints_upperbound_, 
+                                        fg_eval, solution);
 
   // Check some of the solution values
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
+  
+  if (!ok) {
+    // TODO: Maybe this should do more than just print an error message if not success.
+    cout << "ERROR: solution status was not success (" << solution.status << ")" << endl;
+  }
 
   // Cost
   auto cost = solution.obj_value;
@@ -275,8 +274,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
-  
-  vector<double> result;
 
   result.push_back(solution.x[delta_start]);
   result.push_back(solution.x[a_start]);
@@ -294,6 +291,35 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     result.push_back(solution.x[y_start + i + 1]);
   }
 
+  return ok;
+}
 
+vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+  // unpack state variables
+  double x = state[0];
+  double y = state[1];
+  double psi = state[2];
+  double v = state[3];
+  double cte = state[4];
+  double epsi = state[5];  
+
+  // Initial value of the independent variables.
+  // SHOULD BE 0 besides initial state.
+  Dvector vars(n_vars_);
+  InitState(x, y, psi, v, cte, epsi, vars);
+
+  cout << "###vars: " << vars << endl;
+
+  InitContraintBounds(x, y, psi, v, cte, epsi);
+
+  vector<double> result;
+
+  bool ok = MPC::IpoptSolve(coeffs, vars, result);
+
+  if (!ok) {
+    // TODO: Maybe this should do more than just print an error message if not success.
+    cout << "ERROR: something bad happened" << endl;
+  }
+ 
   return result;
 }

@@ -44,16 +44,29 @@ class MPC
 
     virtual ~MPC();
 
+    void InitVarBounds();
+
+    void InitContraintBounds(double x, double y, double psi,
+                              double v, double cte,
+                              double epsi);
+
     void InitState(double x, double y, double psi,
                       double v, double cte,
                       double epsi, Dvector &vars);
+
+    bool IpoptSolve(const Eigen::VectorXd coeffs, const Dvector &vars, 
+                      vector<double> &result);
 
     // Solve the model given an initial state and polynomial coefficients.
     // Return the first actuatotions.
     vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
   private:
     size_t n_vars_ = 0;
-    size_t n_constraints_ = 0;
+    size_t n_constraints_ = 0;  
+    Dvector vars_lowerbound_;
+    Dvector vars_upperbound_;    
+    Dvector constraints_lowerbound_;
+    Dvector constraints_upperbound_;    
 };
 
 #endif /* MPC_H */
