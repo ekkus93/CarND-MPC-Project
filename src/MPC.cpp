@@ -29,24 +29,15 @@ size_t a_start = delta_start + N - 1;
 //
 // This is the length from front to CoG that has a similar radius.
 
-FG_eval::FG_eval(Eigen::VectorXd coeffs) {  
+FG_eval::FG_eval(Eigen::VectorXd coeffs) 
+{  
   this->coeffs = coeffs; 
-
-
 }
 
-void FG_eval::operator()(ADvector &fg, const ADvector &vars)
+void FG_eval::SetReferenceStateCost(ADvector &fg, const ADvector &vars)
 {
-  // TODO: implement MPC
-  // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
-  // NOTE: You'll probably go back and forth between this function and
-  // the Solver function below.
-
   fg[0] = 0;
 
-  // Reference State Cost
-  // TODO: Define the cost related the reference state and
-  // anything you think may be beneficial.
   for (unsigned int i = 0; i < N; i++)
   {
     fg[0] += cost_cte_factor_ * CppAD::pow(vars[cte_start + i] - ref_cte_, 2);
@@ -65,11 +56,10 @@ void FG_eval::operator()(ADvector &fg, const ADvector &vars)
     fg[0] += cost_diff_delta_factor_ * CppAD::pow(vars[delta_start + i] - vars[delta_start + i], 2);
     fg[0] += cost_diff_a_factor_ * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
   }
+}
 
-  // Setup Constraints
-  //
-  // NOTE: In this section you'll setup the model constraints.
-
+void FG_eval::SetupConstraints(ADvector &fg, const ADvector &vars)
+{
   // Initial constraints
   //
   // We add 1 to each of the starting indices due to cost being located
@@ -122,57 +112,81 @@ void FG_eval::operator()(ADvector &fg, const ADvector &vars)
   }
 }
 
+void FG_eval::operator()(ADvector &fg, const ADvector &vars)
+{
+  // TODO: implement MPC
+  // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
+  // NOTE: You'll probably go back and forth between this function and
+  // the Solver function below.
+
+
+  // Reference State Cost
+  // TODO: Define the cost related the reference state and
+  // anything you think may be beneficial.
+  SetReferenceStateCost(fg, vars);
+
+  // Setup Constraints
+  //
+  // NOTE: In this section you'll setup the model constraints.
+  SetupConstraints(fg, vars);
+}
+
 //
 // MPC class definition implementation.
 //
 MPC::MPC() {
-
-}
-MPC::~MPC() {}
-
-vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
-  bool ok = true;
-  typedef CPPAD_TESTVECTOR(double) Dvector;
-
   // TODO: Set the number of model variables (includes both states and inputs).
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
   //
   // 4 * 10 + 2 * 9
-  size_t n_vars = N * 6 + 2*(N - 1);
+  n_vars_ = N * 6 + 2*(N - 1);
   // TODO: Set the number of constraints
-  size_t n_constraints = N * 6;
+  n_constraints_ = N * 6;
+}
+MPC::~MPC() {}
 
-  // Initial value of the independent variables.
-  // SHOULD BE 0 besides initial state.
-  Dvector vars(n_vars);
-  for (unsigned int i = 0; i < n_vars; i++) {
+void MPC::InitState(double x, double y, double psi,
+                      double v, double cte,
+                      double epsi, Dvector &vars)
+{
+  for (unsigned int i = 0; i < n_vars_; i++) {
     vars[i] = 0;
   }
   
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];
-
   vars[x_start] = x;
   vars[y_start] = y;
   vars[psi_start] = psi;
   vars[v_start] = v;
   vars[cte_start] = cte;
   vars[epsi_start] = epsi;  
+}
+
+vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+  bool ok = true;
+  typedef CPPAD_TESTVECTOR(double) Dvector;
+
+  double x = state[0];
+  double y = state[1];
+  double psi = state[2];
+  double v = state[3];
+  double cte = state[4];
+  double epsi = state[5];  
+
+  // Initial value of the independent variables.
+  // SHOULD BE 0 besides initial state.
+  Dvector vars(n_vars_);
+  InitState(x, y, psi, v, cte, epsi, vars);
 
   cout << "###vars: " << vars << endl;
 
-  Dvector vars_lowerbound(n_vars);
-  Dvector vars_upperbound(n_vars);
+  Dvector vars_lowerbound(n_vars_);
+  Dvector vars_upperbound(n_vars_);
   // TODO: Set lower and upper limits for variables.
 
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state.
-  for (unsigned int i = 0; i < n_constraints; i++) {
+  for (unsigned int i = 0; i < n_constraints_; i++) {
     vars_lowerbound[i] = -1.0e19;
     vars_upperbound[i] = 1.0e19;
   }
@@ -191,16 +205,16 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Acceleration/deceleration upper and lower limits 
   // NOTE: Feel free to change this to something else.
-  for (unsigned int i = a_start; i < n_vars; i++) {
+  for (unsigned int i = a_start; i < n_vars_; i++) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
   }
 
   // Lower and upper limits for the constraints
   // Should be 0 besides initial state
-  Dvector constraints_lowerbound(n_constraints);
-  Dvector constraints_upperbound(n_constraints);
-  for (unsigned int i = 0; i < n_constraints; i++) {
+  Dvector constraints_lowerbound(n_constraints_);
+  Dvector constraints_upperbound(n_constraints_);
+  for (unsigned int i = 0; i < n_constraints_; i++) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }

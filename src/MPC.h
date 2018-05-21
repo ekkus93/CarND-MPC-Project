@@ -8,6 +8,8 @@
 using namespace std;
 using CppAD::AD;
 
+typedef CPPAD_TESTVECTOR(double) Dvector;
+
 class FG_eval {
   public:
     // Fitted polynomial coefficients
@@ -15,6 +17,9 @@ class FG_eval {
     FG_eval(Eigen::VectorXd coeffs);
 
     typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
+
+    void SetReferenceStateCost(ADvector &fg, const ADvector &vars);
+    void SetupConstraints(ADvector &fg, const ADvector &vars);
     void operator()(ADvector& fg, const ADvector& vars);
   private:
     int cost_cte_factor_ = 3000;
@@ -39,9 +44,16 @@ class MPC
 
     virtual ~MPC();
 
+    void InitState(double x, double y, double psi,
+                      double v, double cte,
+                      double epsi, Dvector &vars);
+
     // Solve the model given an initial state and polynomial coefficients.
     // Return the first actuatotions.
     vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
+  private:
+    size_t n_vars_ = 0;
+    size_t n_constraints_ = 0;
 };
 
 #endif /* MPC_H */
