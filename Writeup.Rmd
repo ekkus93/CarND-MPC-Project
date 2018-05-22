@@ -1,0 +1,51 @@
+# MPC
+
+## Introduction
+The goal of this project is to implement a Model Predictive Controller(MPC) to optimize a vehicle's trajectory along the track of Udacity's simulator.
+
+The simulator will transmit the following pieces of information to the MPC via a websocket connection:
+
+1. x and y coordinates for waypoints
+2. vehicle's global position 
+3. vehicle's orientation 
+4. steering angle
+5. throttle position
+6. vehicle's speed 
+
+From this information, the MPC model will send back information to the simulator to draw a yellow line to represent the waypoints and a green line to represent the best polynominal fit for the reference trajectory.
+
+## The Model
+The steps for the model are:
+
+1. The model receives information about the vehicle's state and the global coordinates of the waypoints.
+2. The global coordinates of the waypoints are converted to the coordinates relative to that of the vehicle.
+3. Polynomial coefficents for a line based on the relative waypoints is generated.  This will be represented as a yellow line in the simulator.
+4. Predict the current state of the vehicle based on delta t.
+5. Using the current state of the vehicle and the coefficents of the line for the relative waypoints, MPC will calculate (solve) the new steering angle and throttle value and generate the line for the reference trajectory.  The IPOPT optimization solver was used to for this.  The reference trajectory will be represented as a green line in the simulator.
+6. Send the new steering angle and throttle value and the coordinates of the line for the waypoints and the reference trajectory.
+
+## Settings
+Based on trial and error, I chose the following settings:
+```
+N = 10    // time step length
+DT = 0.1  // delta t
+
+// cost coefficents for FG_eval 
+cost_cte_factor_ = 3000
+cost_epsi_factor_ = 600 
+cost_v_factor_ = 1
+cost_current_delta_factor_ = 1
+cost_diff_delta_factor_ = 200
+cost_current_a_factor_ = 1
+cost_diff_a_factor_ = 1    
+
+ref_cte_ = 0    // reference cte (crosstrack error)
+ref_epsi_ = 0   // refenence epsi (orientation error)
+ref_v_ = 40     // reference velocity (mph)
+```
+
+## Summary
+With a reference velocity of 40 mph, the vehicle runs pretty smoothly usually staying around the mid 30's.  Along curves in the road, the vehicle slowed down but kept to the center of the road.
+
+
+

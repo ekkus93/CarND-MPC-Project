@@ -6,8 +6,10 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;    
-double dt = 0.1;
+const size_t N = 10;     // time step length
+const double DT = 0.1;   // delta t
+
+const double LF = 2.67;
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -29,8 +31,10 @@ size_t a_start = delta_start + N - 1;
 //
 // This is the length from front to CoG that has a similar radius.
 
-FG_eval::FG_eval(Eigen::VectorXd coeffs) 
+FG_eval::FG_eval(Eigen::VectorXd coeffs, double Lf, double dt)
 {  
+  this->Lf = Lf;
+  this->dt = dt;
   this->coeffs = coeffs; 
 }
 
@@ -103,12 +107,10 @@ void FG_eval::SetupConstraints(ADvector &fg, const ADvector &vars)
     // TODO: Setup the rest of the model constraints
     fg[2 + x_start + i] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
     fg[2 + y_start + i] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-    fg[2 + psi_start + i] = psi1 - (psi0 - v0 * delta0 / Lf_ * dt);
+    fg[2 + psi_start + i] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
     fg[2 + v_start + i] = v1 - (v0 + a0 * dt);
-    fg[2 + cte_start + i] =
-        cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
-    fg[2 + epsi_start + i] =
-        epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf_ * dt);
+    fg[2 + cte_start + i] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+    fg[2 + epsi_start + i] = epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf * dt);
   }
 }
 
@@ -135,6 +137,9 @@ void FG_eval::operator()(ADvector &fg, const ADvector &vars)
 // MPC class definition implementation.
 //
 MPC::MPC() {
+  Lf = LF; 
+  dt = DT;
+
   // TODO: Set the number of model variables (includes both states and inputs).
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
@@ -228,7 +233,7 @@ bool MPC::IpoptSolve(const Eigen::VectorXd coeffs, const Dvector &vars,
   bool ok = true;
 
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs);
+  FG_eval fg_eval(coeffs, Lf, dt);
 
   //
   // NOTE: You don't have to worry about these options
@@ -308,7 +313,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   Dvector vars(n_vars_);
   InitState(x, y, psi, v, cte, epsi, vars);
 
-  cout << "###vars: " << vars << endl;
+  //cout << "###vars: " << vars << endl;
 
   InitContraintBounds(x, y, psi, v, cte, epsi);
 
@@ -323,3 +328,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
  
   return result;
 }
+
+
+
+                
