@@ -330,7 +330,7 @@ $(document).ready(function () {
 <li>The global coordinates of the waypoints are converted to the coordinates relative to that of the vehicle.</li>
 <li>Polynomial coefficents for a line based on the relative waypoints is generated. This will be represented as a yellow line in the simulator.</li>
 <li>Predict the current state of the vehicle based on delta t.</li>
-<li>Using the current state of the vehicle and the coefficents of the line for the relative waypoints, MPC will calculate (solve) the new steering angle and throttle value and generate the line for the reference trajectory. The IPOPT optimization solver was used to for this. The reference trajectory will be represented as a green line in the simulator.</li>
+<li>Using the current state of the vehicle and the coefficents of the line for the relative waypoints, MPC will calculate (solve) the new steering angle and throttle values and generate the line for the reference trajectory. The IPOPT optimization solver was used to for this. The reference trajectory will be represented as a green line in the simulator.</li>
 <li>Send the new steering angle and throttle value and the coordinates of the line for the waypoints and the reference trajectory.</li>
 </ol>
 </div>
@@ -352,6 +352,11 @@ cost_diff_a_factor_ = 1
 ref_cte_ = 0    // reference cte (crosstrack error)
 ref_epsi_ = 0   // refenence epsi (orientation error)
 ref_v_ = 40     // reference velocity (mph)</code></pre>
+<p>The models uses N = 10 time steps in the future which each time step at dt = 0.1 seconds to calculate the state of the vehicle. First, I tried using different values N for 500 steps in the simulator. While looking at the mean cte and mean epsi, going past N = 10 didn’t seem to improve the accuracy. Using a time step of dt = 0.05, the vehicle quickly lost control and flew off the track. At dt = 0.2, the vehicle moved sluggishly along the track. The vehicle also had a worse mean cte and mean epsi compared to that of dt = 0.1</p>
+</div>
+<div id="latency" class="section level2">
+<h2>Latency</h2>
+<p>The simulator has a systemic latency of 100 milliseconds. To deal with latency, the model will predict the vehicle’s new position for dt = 0.1 seconds. This is handled with the PredictState() function in lines 103-123 of main.cpp. If PredictState() wasn’t applied, the model would be using an old state to calculate the new steering angle and throttle values.</p>
 </div>
 <div id="summary" class="section level2">
 <h2>Summary</h2>

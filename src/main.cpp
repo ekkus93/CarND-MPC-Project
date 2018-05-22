@@ -190,6 +190,7 @@ int main() {
   h.onMessage([&mpc, &i, &max_steps, &total_cte, &total_epsi](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {                  
     i++;
+
     /*
     if (i > max_steps) {
       exit(0);
